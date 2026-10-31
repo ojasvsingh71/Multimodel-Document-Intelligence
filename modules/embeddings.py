@@ -35,7 +35,12 @@ def get_embedding_model(model_name: str = EMBEDDING_MODEL):
         from sentence_transformers import SentenceTransformer
         _model = SentenceTransformer(model_name)
         _loaded_model_name = model_name
-        logger.info("Embedding model loaded — dim=%d", _model.get_sentence_embedding_dimension())
+        dim = (
+            _model.get_embedding_dimension()
+            if hasattr(_model, "get_embedding_dimension")
+            else _model.get_sentence_embedding_dimension()
+        )
+        logger.info("Embedding model loaded — dim=%d", dim)
     return _model
 
 
@@ -43,6 +48,8 @@ def get_embedding_dim(model_name: str = EMBEDDING_MODEL) -> int:
     """Return the output dimension of the configured model."""
     try:
         m = get_embedding_model(model_name)
+        if hasattr(m, "get_embedding_dimension"):
+            return m.get_embedding_dimension()
         return m.get_sentence_embedding_dimension()
     except Exception:
         return EMBEDDING_DIM

@@ -266,15 +266,17 @@ def get_statistics() -> Dict[str, int]:
     with _get_conn() as conn:
         row = conn.execute("""
             SELECT
-                COUNT(*) AS total_docs,
-                SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) AS completed_docs,
+                COALESCE(COUNT(*), 0) AS total_docs,
+                COALESCE(SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END), 0) AS completed_docs,
                 COALESCE(SUM(page_count), 0)  AS total_pages,
                 COALESCE(SUM(table_count), 0) AS total_tables,
                 COALESCE(SUM(image_count), 0) AS total_images,
                 COALESCE(SUM(chunk_count), 0) AS total_chunks
             FROM documents
         """).fetchone()
-    return dict(row) if row else {}
+    if not row:
+        return {}
+    return {k: (int(v) if v is not None else 0) for k, v in dict(row).items()}
 
 
 # ──────────────────────────────────────────────────────────────────────────────

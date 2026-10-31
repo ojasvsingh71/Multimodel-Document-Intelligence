@@ -302,6 +302,106 @@ def _count_pages(source_path: Path, doc_result) -> int:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# PyMuPDF High-Fidelity PDF Processor (Native & Fallback)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _process_pdf_pymupdf(
+    pdf_path: Path, doc_id: str
+) -> tuple[str, List[ExtractedTable], List[ExtractedImage], int]:
+    """
+    High-fidelity PDF processing using PyMuPDF (fitz).
+    Extracts structured text, headings, tables (via find_tables), and images.
+    """
+    import fitz
+
+    doc = fitz.open(str(pdf_path))
+    page_count = doc.page_count
+    md_parts: List[str] = []
+    tables: List[ExtractedTable] = []
+    images: List[ExtractedImage] = []
+
+    img_dir = EXTRACTED_IMAGES_DIR / doc_id
+    img_dir.mkdir(parents=True, exist_ok=True)
+    img_count = 0
+
+    for page_idx, page in enumerate(doc, start=1):
+        if MAX_PAGES_PER_DOC and page_idx > MAX_PAGES_PER_DOC:
+            break
+
+        md_parts.append(f"## Page {page_idx}")
+
+        # Extract structured text blocks
+        blocks = page.get_text("blocks")
+        for b in blocks:
+            if len(b) > 4 and b[4]:
+                text = b[4].strip()
+                if text:
+                    md_parts.append(text)
+                    md_parts.append("")
+
+        # Extract tables if find_tables is supported
+        try:
+            tab_finder = getattr(page, "find_tables", None)
+            if callable(tab_finder):
+                tabs = tab_finder()
+                if tabs and getattr(tabs, "tables", None):
+                    for t_idx, tab in enumerate(tabs.tables):
+                        extracted = tab.extract()
+                        if extracted and len(extracted) > 0:
+                            headers = [str(c or "").strip() for c in extracted[0]]
+                            rows = [[str(c or "").strip() for c in row] for row in extracted[1:]]
+                            tbl_md_lines = ["| " + " | ".join(headers) + " |"]
+                            tbl_md_lines.append("| " + " | ".join(["---"] * len(headers)) + " |")
+                            for r in rows:
+                                tbl_md_lines.append("| " + " | ".join(r) + " |")
+                            tbl_md = "\n".join(tbl_md_lines)
+
+                            tbl_caption = f"Table {len(tables) + 1} (Page {page_idx})"
+                            tables.append(
+                                ExtractedTable(
+                                    table_id=f"{doc_id}_tbl_{len(tables):03d}",
+                                    page=page_idx,
+                                    caption=tbl_caption,
+                                    headers=headers,
+                                    rows=rows,
+                                    raw_markdown=tbl_md,
+                                )
+                            )
+                            md_parts.append(f"\n### {tbl_caption}\n{tbl_md}\n")
+        except Exception as exc:
+            logger.debug("Table detection on page %d: %s", page_idx, exc)
+
+        # Extract images from page
+        try:
+            for img_idx, img_ref in enumerate(page.get_images(full=True)):
+                xref = img_ref[0]
+                try:
+                    base_img = doc.extract_image(xref)
+                    img_bytes = base_img["image"]
+                    ext = base_img.get("ext", "png")
+                    fname = f"page{page_idx:04d}_img{img_idx:03d}.{ext}"
+                    dest = img_dir / fname
+                    dest.write_bytes(img_bytes)
+                    images.append(
+                        ExtractedImage(
+                            image_id=f"{doc_id}_img_{img_count:04d}",
+                            page=page_idx,
+                            caption=f"Image on page {page_idx}",
+                            local_path=str(dest),
+                        )
+                    )
+                    img_count += 1
+                except Exception as exc:
+                    logger.debug("Skipping image xref %d: %s", xref, exc)
+        except Exception as exc:
+            logger.debug("Image extraction on page %d: %s", page_idx, exc)
+
+    doc.close()
+    full_md = "\n".join(md_parts).strip()
+    return full_md, tables, images, page_count
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # PPTX / DOCX fallback processors
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -434,14 +534,20 @@ def process_document(filename: str, file_bytes: bytes) -> ProcessingResult:
     existing = get_doc_by_hash(file_hash)
     if existing:
         logger.info("Duplicate upload detected for %s — reusing existing record.", filename)
+        ex_md = ""
+        ex_proc_dir = existing.get("processed_dir") or ""
+        if ex_proc_dir and (Path(ex_proc_dir) / "extracted.md").exists():
+            ex_md = (Path(ex_proc_dir) / "extracted.md").read_text(encoding="utf-8")
         return ProcessingResult(
             doc_id=existing["doc_id"],
             filename=existing["filename"],
             file_type=existing["file_type"],
             status=existing["status"],
             page_count=existing.get("page_count") or 0,
+            markdown_text=ex_md,
             error_message="Duplicate: this document was already uploaded.",
             stored_path=existing.get("stored_path") or "",
+            processed_dir=ex_proc_dir,
             processing_time_s=time.perf_counter() - t0,
         )
 
@@ -479,12 +585,31 @@ def process_document(filename: str, file_bytes: bytes) -> ProcessingResult:
     try:
         # 4. Conversion
         if suffix in {".pdf"}:
-            conv = _converter()
-            result = conv.convert(str(stored_path))
-            markdown_text = result.document.export_to_markdown()
-            tables = _extract_tables_from_docling(result, doc_id)
-            images = _extract_images_from_docling(result, doc_id, stored_path)
-            page_count = _count_pages(stored_path, result)
+            used_docling = False
+            try:
+                conv = _converter()
+                result = conv.convert(str(stored_path))
+                markdown_text = result.document.export_to_markdown()
+                tables = _extract_tables_from_docling(result, doc_id)
+                images = _extract_images_from_docling(result, doc_id, stored_path)
+                page_count = _count_pages(stored_path, result)
+                used_docling = True
+            except Exception as d_exc:
+                logger.info(
+                    "Docling engine unavailable or encountered an error (%s). Falling back to PyMuPDF.",
+                    d_exc,
+                )
+
+            if not used_docling or not markdown_text.strip():
+                fb_md, fb_tables, fb_images, fb_pages = _process_pdf_pymupdf(stored_path, doc_id)
+                if not markdown_text.strip():
+                    markdown_text = fb_md
+                if not tables:
+                    tables = fb_tables
+                if not images:
+                    images = fb_images
+                if not page_count:
+                    page_count = fb_pages
 
         elif suffix == ".docx":
             try:
@@ -495,6 +620,7 @@ def process_document(filename: str, file_bytes: bytes) -> ProcessingResult:
                 page_count = _count_pages(stored_path, result)
             except Exception:
                 markdown_text, tables, images = _process_docx(stored_path, doc_id)
+                page_count = 1
 
         elif suffix == ".pptx":
             try:
@@ -506,7 +632,6 @@ def process_document(filename: str, file_bytes: bytes) -> ProcessingResult:
                 markdown_text, tables, images = _process_pptx(stored_path, doc_id)
 
         elif suffix in {".png", ".jpg", ".jpeg", ".tiff", ".tif"}:
-            # For images, run OCR via Docling then also save original image
             try:
                 conv = _converter()
                 result = conv.convert(str(stored_path))
@@ -607,6 +732,12 @@ def convert_document_to_markdown(file_path) -> str:
     """Legacy helper kept for backward compatibility."""
     from pathlib import Path as _Path
     p = _Path(file_path)
-    conv = _converter()
-    res = conv.convert(str(p))
-    return res.document.export_to_markdown()
+    try:
+        conv = _converter()
+        res = conv.convert(str(p))
+        return res.document.export_to_markdown()
+    except Exception:
+        if p.suffix.lower() == ".pdf":
+            md, _, _, _ = _process_pdf_pymupdf(p, "preview")
+            return md
+        return ""

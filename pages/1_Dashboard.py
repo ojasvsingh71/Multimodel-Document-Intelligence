@@ -17,16 +17,17 @@ stats = get_statistics()
 
 col1, col2, col3, col4, col5, col6 = st.columns(6)
 metrics = [
-    ("📄", "Total Documents", stats.get("total_docs", 0)),
-    ("✅", "Processed", stats.get("completed_docs", 0)),
-    ("📃", "Pages", stats.get("total_pages", 0)),
-    ("📊", "Tables", stats.get("total_tables", 0)),
-    ("🖼️", "Images", stats.get("total_images", 0)),
-    ("🔢", "Chunks", stats.get("total_chunks", 0)),
+    ("📄", "Total Documents", stats.get("total_docs") or 0),
+    ("✅", "Processed", stats.get("completed_docs") or 0),
+    ("📃", "Pages", stats.get("total_pages") or 0),
+    ("📊", "Tables", stats.get("total_tables") or 0),
+    ("🖼️", "Images", stats.get("total_images") or 0),
+    ("🔢", "Chunks", stats.get("total_chunks") or 0),
 ]
 for col, (icon, label, value) in zip([col1, col2, col3, col4, col5, col6], metrics):
+    val_int = int(value or 0)
     with col:
-        st.metric(label=f"{icon} {label}", value=f"{value:,}")
+        st.metric(label=f"{icon} {label}", value=f"{val_int:,}")
 
 st.markdown("---")
 

@@ -80,7 +80,7 @@ for f in uploaded_files:
 import pandas as pd
 st.dataframe(pd.DataFrame(preview_data), use_container_width=True, hide_index=True)
 
-if st.button("🚀 Process & Index All Files", type="primary", use_container_width=False):
+if st.button("🚀 Process & Index All Files", type="primary"):
     progress_bar = st.progress(0, text="Starting…")
     status_container = st.empty()
     results_log = []
