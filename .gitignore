@@ -1,0 +1,62 @@
+# ── Python ───────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── Virtual Environments ─────────────────────────────────────
+.venv/
+venv/
+ENV/
+env/
+
+# ── Environment Variables ────────────────────────────────────
+.env
+# .env.example is intentionally tracked
+
+# ── Application Data (large/generated) ───────────────────────
+data/uploads/
+data/processed/
+data/extracted_images/
+data/outputs/
+data/cache/
+database/chroma_db/
+database/metadata/documents.db
+
+# Keep directory markers
+!data/uploads/.gitkeep
+!data/processed/.gitkeep
+!data/extracted_images/.gitkeep
+!data/outputs/.gitkeep
+!data/cache/.gitkeep
+!database/chroma_db/.gitkeep
+!database/metadata/.gitkeep
+
+# ── IDE ──────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── OS ───────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Logs ────────────────────────────────────────────────────
+*.log
+
+# ── Pytest ──────────────────────────────────────────────────
+.pytest_cache/
+htmlcov/
+.coverage
+
+# ── Model Cache (large) ──────────────────────────────────────
+# Sentence Transformers model files
+*.bin
+*.safetensors
