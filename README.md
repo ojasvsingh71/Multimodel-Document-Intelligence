@@ -164,21 +164,23 @@ Multimodal-Document-Intelligence/
 
 ---
 
-## 🚀 Installation (Windows 11 — PowerShell)
+## 🚀 Installation Guide
 
-### Step 1: Clone or Navigate to the Project
+### Option A: Windows 11 (PowerShell)
+
+#### Step 1: Clone or Navigate to the Project
 
 ```powershell
 cd d:\Projects\Multimodal-Document-Intelligence
 ```
 
-### Step 2: Create a Virtual Environment
+#### Step 2: Create a Virtual Environment
 
 ```powershell
 py -3.10 -m venv .venv
 ```
 
-### Step 3: Activate the Virtual Environment
+#### Step 3: Activate the Virtual Environment
 
 ```powershell
 .\.venv\Scripts\Activate.ps1
@@ -189,56 +191,127 @@ py -3.10 -m venv .venv
 > Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 > ```
 
-### Step 4: Upgrade pip and Install Dependencies
+#### Step 4: Upgrade pip and Install Dependencies
 
 ```powershell
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-> **Note:** The first install downloads PyTorch (~200 MB) and Sentence Transformers. This is a one-time operation.
-
-### Step 5: Install Ollama
+#### Step 5: Install Ollama
 
 1. Visit **[ollama.com](https://ollama.com)** and download the Windows installer.
-2. Run the installer.
-3. Verify installation:
-   ```powershell
-   ollama --version
-   ```
-4. Start the Ollama server (keep this terminal open):
+2. Run the installer and launch Ollama:
    ```powershell
    ollama serve
    ```
 
-### Step 6: Download AI Models
+#### Step 6: Download AI Models
 
 ```powershell
-# Text/reasoning model (recommended — ~2 GB)
+# Text model (recommended — ~2 GB)
 ollama pull qwen2.5:3b
 
 # Vision-Language model for image understanding (optional — ~4.7 GB)
 ollama pull llava:7b
 
-# Verify models are installed
+# Verify installed models
 ollama list
 ```
 
-**Lightweight alternatives (if RAM is limited):**
-```powershell
-ollama pull qwen2.5:1.5b   # ~1 GB — very fast
-ollama pull phi3:mini       # ~2.3 GB — good quality
-```
-
-### Step 7: Configure Environment Variables
+#### Step 7: Configure Environment Variables
 
 ```powershell
 Copy-Item .env.example .env
 notepad .env
 ```
 
-Key settings to verify in `.env`:
+#### Step 8: Run the Application
 
+```powershell
+streamlit run app.py
+```
+
+The application opens at: **http://localhost:8501**
+
+---
+
+### Option B: macOS (Apple Silicon M1/M2/M3/M4 & Intel)
+
+#### Step 1: Install System Prerequisites (Homebrew & Python 3.10+)
+
+If you do not have Homebrew installed, install it from [brew.sh](https://brew.sh):
+
+```bash
+# Install Homebrew (if not already installed)
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Install Xcode command-line tools (needed for compilation)
+xcode-select --install
+
+# Install Python 3.10 or newer
+brew install python@3.10
+```
+
+#### Step 2: Clone or Navigate to the Project
+
+```bash
+cd ~/Projects/Multimodal-Document-Intelligence
+```
+
+#### Step 3: Create and Activate Virtual Environment
+
+```bash
+# Create virtual environment
+python3 -m venv .venv
+
+# Activate virtual environment
+source .venv/bin/activate
+```
+
+#### Step 4: Upgrade pip and Install Dependencies
+
+```bash
+python3 -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+> **Apple Silicon Note:** PyTorch and Sentence Transformers will automatically use Apple Silicon Unified Memory and MPS (Metal Performance Shaders) for accelerated processing on M-series chips.
+
+#### Step 5: Install and Start Ollama on macOS
+
+You can install Ollama via Homebrew or direct download:
+
+```bash
+# Option 1: Via Homebrew Cask (Recommended)
+brew install --cask ollama
+
+# Option 2: Download the macOS .dmg from https://ollama.com/download
+```
+
+Launch Ollama from your Applications folder (or run `ollama serve` in a background terminal). Ollama on macOS natively leverages the Apple Neural Engine and GPU through Metal for fast inference!
+
+#### Step 6: Download Models
+
+```bash
+# Text reasoning model (~2 GB)
+ollama pull qwen2.5:3b
+
+# Vision-Language model for diagrams/figures (~4.7 GB)
+ollama pull llava:7b
+
+# Verify installed models
+ollama list
+```
+
+#### Step 7: Configure Environment Variables
+
+```bash
+cp .env.example .env
+nano .env   # or open with your preferred editor, e.g., code .env
+```
+
+Verify your `.env` settings:
 ```env
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=qwen2.5:3b
@@ -249,9 +322,9 @@ CHUNK_OVERLAP=120
 TOP_K=5
 ```
 
-### Step 8: Run the Application
+#### Step 8: Run the Application
 
-```powershell
+```bash
 streamlit run app.py
 ```
 
@@ -399,6 +472,8 @@ Metrics measured on real system runs:
 | `ChromaDB error` | Delete `./database/chroma_db/` and re-index |
 | `Port 8501 in use` | Run `streamlit run app.py --server.port 8502` |
 | `slow embedding` | Reduce `EMBEDDING_BATCH_SIZE` in `.env` |
-| `Import error` | Activate venv: `.\.venv\Scripts\Activate.ps1` then reinstall |
+| `Import error` | Activate venv: `.\.venv\Scripts\Activate.ps1` (Win) or `source .venv/bin/activate` (Mac) |
+| `macOS build tool error` | Run `xcode-select --install` in terminal |
+| `macOS port 8501 in use` | Run `lsof -i :8501` and `kill -9 <PID>` or `streamlit run app.py --server.port 8502` |
 
 ---
