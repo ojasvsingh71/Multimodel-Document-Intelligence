@@ -144,6 +144,46 @@ def answer_question(
     if not question:
         return RAGResponse(answer="", error="Question cannot be empty.")
 
+    q_clean = question.lower().strip("?!. ")
+
+    # Conversational Greeting
+    if q_clean in {"hi", "hello", "hey", "greetings", "good morning", "good afternoon", "good evening", "howdy"}:
+        from modules.database_manager import get_all_documents
+        docs = get_all_documents()
+        doc_names = [d["filename"] for d in docs if (d.get("chunk_count") or 0) > 0]
+        if doc_names:
+            doc_list_str = "\n".join(f"- **{name}**" for name in doc_names)
+            return RAGResponse(
+                answer=(
+                    f"Hello! I am your Multimodal Document Intelligence Assistant.\n\n"
+                    f"I have access to the following indexed documents:\n{doc_list_str}\n\n"
+                    "Feel free to ask questions about methodologies, models, architectures, results, tables, or figures!"
+                )
+            )
+        else:
+            return RAGResponse(
+                answer="Hello! I am your Multimodal Document Intelligence Assistant.\n\n"
+                       "You have not indexed any documents yet. Please upload files in the **Upload Documents** tab to begin."
+            )
+
+    # Document Inventory / Overview query
+    if any(t in q_clean for t in ["what information do you have", "what info do you have", "what documents", "what do you know", "what can you do", "help"]):
+        from modules.database_manager import get_all_documents
+        docs = get_all_documents()
+        if docs:
+            lines = ["Here are the documents currently loaded in your system:\n"]
+            for d in docs:
+                chunks = d.get("chunk_count", 0)
+                pages = d.get("page_count", "unknown")
+                tables = d.get("table_count", 0)
+                imgs = d.get("image_count", 0)
+                status = "✅ Indexed" if chunks > 0 else "⚠️ Not indexed (0 chunks)"
+                lines.append(
+                    f"- **{d['filename']}** ({status}) — {pages} pages, {chunks} chunks, {tables} tables, {imgs} images"
+                )
+            lines.append("\nYou can ask me to summarize them, compare approaches, explain specific tables or figures, or answer specific research questions.")
+            return RAGResponse(answer="\n".join(lines))
+
     if not is_ollama_running(_base_url):
         return RAGResponse(
             answer="",
@@ -166,9 +206,22 @@ def answer_question(
     retrieval_time_ms = (time.perf_counter() - t_ret) * 1000
 
     if not chunks:
+        from modules.vector_database import get_collection
+        total_in_db = get_collection().count()
+        if total_in_db == 0:
+            msg = (
+                "⚠️ **No document chunks are indexed in the vector database.**\n\n"
+                "Please go to **Document Library** and click **🔄 Re-Index**, "
+                "or upload your documents again via **Upload Documents**."
+            )
+        else:
+            msg = (
+                "I could not find relevant content matching your query in the selected documents.\n\n"
+                "- Try rephrasing your question or using different keywords.\n"
+                "- Ensure the intended document is selected in the sidebar."
+            )
         return RAGResponse(
-            answer="I could not find any relevant content in the selected documents. "
-                   "Please make sure documents are indexed or refine your question.",
+            answer=msg,
             query_time_ms=query_time_ms,
             retrieval_time_ms=retrieval_time_ms,
         )

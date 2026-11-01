@@ -31,19 +31,31 @@ with st.sidebar:
     completed_docs = [d for d in docs if d.get("status") == "completed"]
 
     if not completed_docs:
-        st.warning("No indexed documents. Upload and process documents first.")
+        st.warning("No processed documents. Upload and process documents first.")
         selected_doc_ids = []
     else:
+        # Display helper with chunk count
+        doc_label_map = {
+            d["doc_id"]: f"{d['filename']} ({d.get('chunk_count', 0)} chunks)"
+            for d in completed_docs
+        }
+        zero_chunks = [d["filename"] for d in completed_docs if (d.get("chunk_count") or 0) == 0]
+        if zero_chunks:
+            st.warning(
+                f"⚠️ {len(zero_chunks)} document(s) have 0 chunks indexed. "
+                "Open **Document Library** and click **🔄 Re-Index**."
+            )
+
         all_selected = st.checkbox("Search all documents", value=True)
         if not all_selected:
-            selected_filenames = st.multiselect(
+            selected_labels = st.multiselect(
                 "Select documents",
-                options=[d["filename"] for d in completed_docs],
-                default=[d["filename"] for d in completed_docs[:1]],
+                options=list(doc_label_map.values()),
+                default=list(doc_label_map.values())[:1],
             )
             selected_doc_ids = [
-                d["doc_id"] for d in completed_docs
-                if d["filename"] in selected_filenames
+                doc_id for doc_id, label in doc_label_map.items()
+                if label in selected_labels
             ]
         else:
             selected_doc_ids = [d["doc_id"] for d in completed_docs]

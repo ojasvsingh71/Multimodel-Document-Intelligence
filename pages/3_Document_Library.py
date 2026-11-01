@@ -89,6 +89,28 @@ for doc in docs:
         with col_action:
             st.markdown("**Actions**")
 
+            # Re-index button
+            if st.button(
+                "🔄 Re-Index",
+                key=f"reidx_{doc_id}",
+                help="Re-chunk and generate vector embeddings for this document.",
+            ):
+                with st.spinner(f"Re-indexing {doc['filename']}…"):
+                    from modules.document_processor import process_document
+                    from modules.rag_pipeline import index_document
+                    from pathlib import Path
+                    stored_f = Path(doc.get("stored_path", ""))
+                    if stored_f.exists():
+                        res = process_document(doc["filename"], stored_f.read_bytes())
+                        n, err = index_document(res)
+                        if err:
+                            st.error(f"Re-indexing failed: {err}")
+                        else:
+                            st.success(f"Indexed {n} chunks!")
+                            st.rerun()
+                    else:
+                        st.error("Source document file not found on disk.")
+
             # View extracted markdown
             from modules.config import PROCESSED_DIR
             md_file = PROCESSED_DIR / doc_id / "extracted.md"
